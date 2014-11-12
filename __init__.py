@@ -32,21 +32,21 @@ class Radipower(Serial):
     super(Radipower,self).__init__(device, baud,
                                    timeout=timeout, writeTimeout=writeTimeout)
     sleep(0.02)
-    self.attributes = []
+    self._attributes_ = []
     self.logger = logging.getLogger(module_logger.name+".Radipower")
     self.logger.debug(" initializing %s", device)
-    self.attributes.append('logger')
+    self._attributes_.append('logger')
     if self.get_ID():
-      self.attributes.append('ID')
+      self._attributes_.append('ID')
       self.logger.info(" initialized %s", self.ID)
       self.identify()
-      self.attributes.append('model')
-      self.attributes.append("HWversion")
-      self.attributes.append("SWversion")
+      self._attributes_.append('model')
+      self._attributes_.append("HWversion")
+      self._attributes_.append("SWversion")
       self.fcal_min = float(self.ask("FREQUENCY? MIN")[:-4])/1000.
-      self.attributes.append('fcal_min')
+      self._attributes_.append('fcal_min')
       self.fcal_max = float(self.ask("FREQUENCY? MAX")[:-4])/1000.
-      self.attributes.append('fcal_max')
+      self._attributes_.append('fcal_max')
     else:
       self.logger.warning(" initialization failed")
     
@@ -99,12 +99,12 @@ class Radipower(Serial):
 
   def _add_attr(self, attr):
     try:
-      self.attributes.index(attr)
+      self._attributes_.index(attr)
     except ValueError:
-      self.attributes.append(attr)
+      self._attributes_.append(attr)
 
   def __dir__(self):
-    return self.attributes
+    return self._attributes_
     
   def get_power(self):
     self.power = float(self.ask("POWER?")[:-4])
