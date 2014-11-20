@@ -19,18 +19,9 @@ if plot_it:
 import logging
 
 from Electronics.Instruments.Radipower import Radipower, IDs, find_radipowers
+from support import check_permission
 from support.process import invoke
 from support.logs import init_logging
-
-def check_permission(group):
-  p = invoke("groups")
-  groups = p.stdout.readline().split()
-  try:
-    groups.index(group)
-  except ValueError:
-    if environ['USER'] != 'root':
-      raise RuntimeError("You must be in group '"+group+"', root or 'sudo'er")
-  mylogger.info(" User permissions verified")
  
 if __name__ == "__main__":
   logging.basicConfig(level=logging.DEBUG)
@@ -46,7 +37,7 @@ if __name__ == "__main__":
   start = time()
   mylogger.setLevel(logging.INFO)
   for key in rp_keys:
-    readings.append(rp[key].get_power())
+    readings.append(rp[key].power())
     rp[key].close()
   stop = time()
   rate = len(rp_keys)/(stop-start)

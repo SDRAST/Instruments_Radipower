@@ -3,6 +3,8 @@ from time import sleep
 import logging
 from glob import glob
 
+from Electronics.Instruments import PowerMeter
+
 module_logger = logging.getLogger(__name__)
 
 IDs = {"1.99.234.24.23.0.0.212":  0,
@@ -22,31 +24,38 @@ class RadipowerError(RuntimeError):
   def __repr__(self):
     return repr(("".join(str(self.args)), self.message))
 
-class Radipower(Serial):
+class Radipower(PowerMeter,Serial):
   """
   """
+  averages = {1:1, 2:3, 3:10, 4:30, 4:100, 5:300, 6:1000}
+  
   def __init__(self, device="/dev/ttyUSB0", baud=115200,
                timeout=1, writeTimeout=1):
     """
     """
-    super(Radipower,self).__init__(device, baud,
-                                   timeout=timeout, writeTimeout=writeTimeout)
+    mylogger = logging.getLogger(module_logger.name+".Radipower")
+    Serial.__init__(self, device, baud,
+                          timeout=timeout, writeTimeout=writeTimeout)
     sleep(0.02)
+    PowerMeter.__init__(self)
+    self.logger = mylogger
+    self.logger.debug(" initializing %s", device)    
     self._attributes_ = []
-    self.logger = logging.getLogger(module_logger.name+".Radipower")
-    self.logger.debug(" initializing %s", device)
     self._attributes_.append('logger')
     if self.get_ID():
       self._attributes_.append('ID')
-      self.logger.info(" initialized %s", self.ID)
       self.identify()
       self._attributes_.append('model')
-      self._attributes_.append("HWversion")
+      self._attributes_.append("HWversion"),
       self._attributes_.append("SWversion")
-      self.fcal_min = float(self.ask("FREQUENCY? MIN")[:-4])/1000.
-      self._attributes_.append('fcal_min')
-      self.fcal_max = float(self.ask("FREQUENCY? MAX")[:-4])/1000.
-      self._attributes_.append('fcal_max')
+      # These replace class PowerMeter defaultscal_freq
+      self.f_min = float(self.ask("FREQUENCY? MIN")[:-4])/1.e6 # GHz
+      self.f_max = float(self.ask("FREQUENCY? MAX")[:-4])/1.e6 # GHz
+      self.p_min = -55 # dBm
+      self.p_max = +10 # dBm
+      self.get_averaging() # sets num_avg
+      # units and trigmode are the same as the PowerMeter defaults
+      self.logger.info(" initialized %s", device[5:])
     else:
       self.logger.warning(" initialization failed")
     
@@ -71,7 +80,7 @@ class Radipower(Serial):
     self.HWversion = self.ask("VERSION_HW?")
     self.SWversion = self.ask("VERSION_SW?")
 
-  def ask(self,command):
+  def ask(self, command):
     self.write(command+'\n')
     response = self.readline().strip()
     self.logger.debug("ask: response: %s", response)
@@ -97,51 +106,93 @@ class Radipower(Serial):
     else:
       raise RadipowerError(response,"is and unexpected response")
 
-  def _add_attr(self, attr):
-    try:
-      self._attributes_.index(attr)
-    except ValueError:
-      self._attributes_.append(attr)
+  def set_cal_freq(self, freq=None):
+    """
+    Gets or sets the calibration frequency
 
-  def __dir__(self):
-    return self._attributes_
-    
-  def get_power(self):
-    self.power = float(self.ask("POWER?")[:-4])
-    self._add_attr("power")
-    return self.power
-
-  def get_cal_freq(self):
-    self.fcal = float(self.ask("FREQUENCY?")[:-4])/1000.
-    self._add_attr("fcal")
-    return self.fcal
+    @param freq : frequency in GHz
+    @type  freq : float
+    """
+    if freq == None:
+      suffix = "?"
+    else:
+      f = int(round(freq*1e9))
+      suffix = " "+str(f)+" Hz"
+    response = self.ask("FREQUENCY"+suffix)
+    if freq == None:
+      self.f_cal = float(response[:-4])/1.e9
+    else:
+      self.f_cal = f
+    self._add_attr("f_cal")
+    return self.f_cal
 
   def get_temp(self):
     self.temp = float(self.ask("TEMPERATURE?"))/10.
     self._add_attr("temp")
     return self.temp
 
-  def get_averaging_code(self):
+  # --------------------- methods defined for PowerMeter ----------------------
+  
+  def power(self):
+    """
+    Returns one (possible averaged) power reading in dBm
+    """
+    self.reading = float(self.ask("POWER?")[:-4])
+    self._add_attr("power")
+    return self.reading
+
+  def get_averaging(self):
+    """
+    Number of samples averaged according to filter code
+    """
     self.filter = self.ask("FILTER?")
     self._add_attr("filter")
+    if self.filter == "AUTO":
+      self.power()
+      if self.reading > -20. and self.reading <= 10.:
+        self.num_avg = 10
+      elif self.reading > -30. and self.reading <= -20.:
+        self.num_avg = 30
+      elif self.reading > -40. and self.reading <= -30.:
+        self.num_avg = 100
+      elif self.reading > -50. and self.reading <= -40.:
+        self.num_avg = 300
+      else:
+        self.num_avg = 1000
+    else:
+      self.num_avg = Radipower.averages[int(self.filter)]
     if self.filter == "1":
-      self.num_samples = 1
+      self.num_avg = 1
     elif self.filter == "2":
-      self.num_samples = 3
+      self.num_avg = 3
     elif self.filter == "3":
-      self.num_samples = 10
+      self.num_avg = 10
     elif self.filter == "4":
-      self.num_samples = 30
+      self.num_avg = 30
     elif self.filter == "5":
-      self.num_samples = 100
+      self.num_avg = 100
     elif self.filter == "6":
-      self.num_samples = 300
+      self.num_avg = 300
     elif self.filter == "7":
-      self.num_samples = 1000
-    elif self.filter == "AUTO":
-      pass # for now
-    self._add_attr("num_samples")
+      self.num_avg = 1000
 
+  def set_averaging(self, num_averages):
+    """
+    Sets filter code for number of avearges closest to request
+
+    @param num_averages : 1-1000; 0 for AUTO
+    @type  num_averages : int
+    """
+    if num_averages > 1000:
+      raise RadipowerError(num_averages,"averages is greater than 1000")
+    if num_averages <= 1000 and num_averages > 0:
+      self.filter = int(round(log(num_averages,3.15)))+1
+      response  = self.ask("FILTER "+str(self.filter))
+    elif num_averages == 0:
+      self.filter = "AUTO"
+      response  = self.ask("FILTER AUTO")
+    return response
+    
 # ----------------------------- module methods ---------------------------------
 
 def find_radipowers():
