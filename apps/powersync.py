@@ -17,7 +17,7 @@ from DatesTimes import UnixTime_to_MPL
 
 if __name__ == "__main__":
   mylogger = logging.getLogger()
-  mylogger.setLevel(logging.INFO)
+  mylogger.setLevel(logging.DEBUG)
 
   pm, pmlist = find_radipowers()
 
