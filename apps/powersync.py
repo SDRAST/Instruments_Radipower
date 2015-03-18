@@ -16,6 +16,7 @@ from support.rtc import RTC
 from DatesTimes import UnixTime_to_MPL
 
 if __name__ == "__main__":
+  logging.basicConfig(level=logging.DEBUG)
   mylogger = logging.getLogger()
   mylogger.setLevel(logging.DEBUG)
 
