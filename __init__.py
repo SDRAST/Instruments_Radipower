@@ -83,6 +83,7 @@ class Radipower(PowerMeter,Serial):
     self.SWversion = self.ask("VERSION_SW?")
 
   def ask(self, command):
+    self.logger.debug("ask: '%s' at %s", command, str(datetime.now()))
     self.write(command+'\n')
     response = self.readline().strip()
     self.logger.debug("ask: response: %s", response)
@@ -140,7 +141,7 @@ class Radipower(PowerMeter,Serial):
     Returns one (possible averaged) power reading in dBm
     """
     self.reading = float(self.ask("POWER?")[:-4])
-    self.logger.debug("power: reading is %f at %s", self.reading, str(datetime.now()))
+    self.logger.debug("power: reading is %6.2f at %s", self.reading, str(datetime.now()))
     self._add_attr("power")
     return self.reading
 
