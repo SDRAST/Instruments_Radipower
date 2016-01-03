@@ -13,14 +13,15 @@ if __name__ == "__main__":
   files.sort()
   for fname in files:
     index = files.index(fname)
-    data[index] = loadtxt(fname,dtype=str)
-    start = datestr2num(data[index][0,0])
-    for pm in pmlist:
-      tm = datestr2num(array(data[pm][:,0]))
-      pw = array(data[pm][:,1],astype=float)
-      plot(ar[:,0]-start, ar[:,1], '.', label=str(pm))
-    title(time.ctime(data[0][0][0]))
-    legend(numpoints=1)
-    xlabel("%d samples/sec" % radiometer.rate)
-    grid()
-    show()
+    data = loadtxt(fname,dtype=str)
+    startstr = data[0,0]+" "+ data[0,1]
+    start = datestr2num(startstr)
+    
+    tm = datestr2num([ " ".join(line[0:2]) for line in data if len(line) > 1 ])
+    pw = array(data[:,2], dtype=float)
+    plot(tm-start, pw, '.', label=str(index))
+  title(startstr)
+  legend(numpoints=1)
+  xlabel("elapsed time")
+  grid()
+  show()

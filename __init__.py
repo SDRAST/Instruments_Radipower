@@ -1,8 +1,9 @@
+from datetime import datetime
+from glob import glob
+from math import log
 from serial import Serial
 from time import sleep
-from datetime import datetime
 import logging
-from glob import glob
 
 from Electronics.Instruments import PowerMeter
 
@@ -19,7 +20,12 @@ IDs = {"1.99.234.24.23.0.0.212":  0,
        "114.80.79.87.69.82.0.68": 99} # lab test unit
 
 class RadipowerError(RuntimeError):
+  """
+  Exception for Radipower class
+  """
   def __init__(self,args,message):
+    """
+    """
     self.args = args
     self.message = message
 
@@ -28,11 +34,20 @@ class RadipowerError(RuntimeError):
 
 class Radipower(PowerMeter,Serial):
   """
+  Class for a Radipower USB power reading head.
+  
+  The head provides for averaging of readings according to a filter code
+  defined in class variable 'averages'.  At filter code setting 1, the
+  rate is 100 samples/sec.
+  
+  Reference
+  ========= 
+  http://dsnra.jpl.nasa.gov/dss/manuals/RadiPower_Standalone_V1_1.pdf
   """
-  averages = {1:1, 2:3, 3:10, 4:30, 4:100, 5:300, 6:1000}
+  averages = {1:1, 2:3, 3:10, 4:30, 5:100, 6:300, 7:1000}
   
   def __init__(self, device="/dev/ttyUSB0", baud=115200,
-               timeout=1, writeTimeout=1):
+               timeout=1, writeTimeout=1, num_avg=10):
     """
     """
     mylogger = logging.getLogger(module_logger.name+".Radipower")
@@ -45,17 +60,18 @@ class Radipower(PowerMeter,Serial):
     self._attributes_ = []
     self._attributes_.append('logger')
     if self.get_ID():
+      #self.write('REBOOT SYSTEM\n')
       self._attributes_.append('ID')
       self.identify()
       self._attributes_.append('model')
       self._attributes_.append("HWversion"),
       self._attributes_.append("SWversion")
-      # These replace class PowerMeter defaultscal_freq
+      # These replace class PowerMeter defaults
       self.f_min = float(self.ask("FREQUENCY? MIN")[:-4])/1.e6 # GHz
       self.f_max = float(self.ask("FREQUENCY? MAX")[:-4])/1.e6 # GHz
       self.p_min = -55 # dBm
       self.p_max = +10 # dBm
-      self.get_averaging() # sets num_avg
+      self.set_averaging(num_avg) # sets num_avg
       # units and trigmode are the same as the PowerMeter defaults
       self.logger.info(" initialized %s", device[5:])
     else:
@@ -78,19 +94,29 @@ class Radipower(PowerMeter,Serial):
     return exists
 
   def identify(self):
+    """
+    """
     self.model = self.ask("*IDN?")
     self.HWversion = self.ask("VERSION_HW?")
     self.SWversion = self.ask("VERSION_SW?")
 
   def ask(self, command):
-    self.logger.debug("ask: '%s' at %s", command, str(datetime.now()))
+    """
+    """
+    self.logger.debug("ask: '%s'", command)
     self.write(command+'\n')
     response = self.readline().strip()
     self.logger.debug("ask: response: %s", response)
     parts = response.split(";")
     if len(parts) == 1:
       return response
-    elif parts[0] == 'ERROR 1':
+    else:
+      _IO_error(parts)
+  
+  def _IO_error(self, parts):
+    """
+    """
+    if parts[0] == 'ERROR 1':
       raise RadipowerError(parts[1],"is not a valid command")
     elif parts[0] == 'ERROR 50':
       raise RadipowerError(response,"; command has a bad argument")
@@ -107,7 +133,7 @@ class Radipower(PowerMeter,Serial):
     elif parts[0] == 'ERROR_604':
       raise RadipowerError(response,"; no calibration data for this frequency")
     else:
-      raise RadipowerError(response,"is and unexpected response")
+      raise RadipowerError(response,"is an unexpected response")
 
   def set_cal_freq(self, freq=None):
     """
@@ -148,6 +174,9 @@ class Radipower(PowerMeter,Serial):
   def get_averaging(self):
     """
     Number of samples averaged according to filter code
+    
+    If the filter code is AUTO then the effective filter code must be inferred
+    from the power level.
     """
     self.filter = self.ask("FILTER?")
     self._add_attr("filter")
@@ -179,10 +208,11 @@ class Radipower(PowerMeter,Serial):
       self.num_avg = 300
     elif self.filter == "7":
       self.num_avg = 1000
+    return self.num_avg
 
   def set_averaging(self, num_averages):
     """
-    Sets filter code for number of avearges closest to request
+    Sets filter code for number of averages closest to requested
 
     @param num_averages : 1-1000; 0 for AUTO
     @type  num_averages : int
@@ -195,13 +225,34 @@ class Radipower(PowerMeter,Serial):
     elif num_averages == 0:
       self.filter = "AUTO"
       response  = self.ask("FILTER AUTO")
+    self.get_averaging()
     return response
+
+class RP_array(dict):
+  """
+  Array of power meters
+  
+  This redefines key() so it returns a sorted list
+  """
+  def __init__(self, args):
+    """
+    Initialize the dict
+    """
+    dict.__init__(self, args)
+    
+  def keys(self):
+    """
+    Return sorted list of keys
+    """
+    keys = super(RP_array,self).keys()
+    keys.sort()
+    return keys
     
 # ----------------------------- module methods ---------------------------------
 
 def find_radipowers():
   """
-  Instantiates the Radipowers found and returns a sorted list of indices
+  Instantiates the Radipowers found and returns a dict
   """
   ports = glob("/dev/ttyUSB*")
   module_logger.debug(" ports: %s", ports)
@@ -213,7 +264,4 @@ def find_radipowers():
       index = IDs[RP.ID]
       rp[index] = RP
       module_logger.debug(" Attached Radipower %d", index)
-  available = rp.keys()
-  available.sort()
-  module_logger.debug(" available: %s", available)
-  return rp, available
+  return rp
