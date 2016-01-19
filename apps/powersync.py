@@ -29,7 +29,7 @@ if __name__ == "__main__":
   
   if pm:
     mylogger.info("Starting powersync at %s", str(datetime.datetime.now()))
-    radiometer = Radiometer(pm, rate=10)
+    radiometer = Radiometer(pm, rate=0.2)
     mylogger.debug(" radiometer initialized")
     mylogger.info(" radiometer started")
     data = {}
@@ -43,7 +43,7 @@ if __name__ == "__main__":
       try:
         # This just gives the main loop something to do so an <Esc> will be
         # caught
-        for pm in pmlist:
+        for key in pm.keys():
           time.sleep(0.0001)
       except KeyboardInterrupt:
         mylogger.warning(" main thread got Ctrl-C")

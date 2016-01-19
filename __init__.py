@@ -167,7 +167,7 @@ class Radipower(PowerMeter,Serial):
     Returns one (possible averaged) power reading in dBm
     """
     self.reading = float(self.ask("POWER?")[:-4])
-    self.logger.debug("power: reading is %6.2f at %s", self.reading, str(datetime.now()))
+    self.logger.debug("power: reading is %6.2f", self.reading)
     self._add_attr("power")
     return self.reading
 
