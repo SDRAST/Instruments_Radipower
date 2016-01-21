@@ -60,6 +60,7 @@ class Radipower(PowerMeter,Serial):
     self._attributes_ = []
     self._attributes_.append('logger')
     if self.get_ID():
+      self.name = self.ID
       #self.write('REBOOT SYSTEM\n')
       self._attributes_.append('ID')
       self.identify()
