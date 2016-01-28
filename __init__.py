@@ -8,7 +8,7 @@ import logging
 
 from Electronics.Instruments import PowerMeter
 from support import nearest_index
-module_logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 sqrt10 = sqrt(10)
 
@@ -61,7 +61,7 @@ class Radipower(PowerMeter, Serial):
                timeout=1, writeTimeout=1):
     """
     """
-    mylogger = logging.getLogger(module_logger.name+".Radipower")
+    mylogger = logging.getLogger(logger.name+".Radipower")
     Serial.__init__(self, device, baud,
                           timeout=timeout, writeTimeout=writeTimeout)
     sleep(0.02)
@@ -71,24 +71,27 @@ class Radipower(PowerMeter, Serial):
     self._attributes_ = []
     self._attributes_.append('logger')
     if self.get_ID():
-      self.name = self.ID
-      self._attributes_.append('ID')
-      self.identify()
-      self._attributes_.append('model')
-      self._attributes_.append("HWversion"),
-      self._attributes_.append("SWversion")
-      # These replace class PowerMeter defaults
-      self.f_min = float(self.ask("FREQUENCY? MIN")[:-4])/1.e6 # GHz
-      self.f_max = float(self.ask("FREQUENCY? MAX")[:-4])/1.e6 # GHz
-      self.p_min = -55 # dBm
-      self.p_max = +10 # dBm
-      self.auto_averaging() # sets num_avg
-      # units and trigmode are the same as the PowerMeter defaults
-      self.units = self.ask("POWER_UNIT?")
-      self.trigmode = None
-      # use lowest sampling speed
-      self.ask("ACQ_SPEED 20")
-      self.logger.info(" initialized %s", device[5:])
+      if self.ID:
+        self.name = self.ID
+        self._attributes_.append('ID')
+        self.identify()
+        self._attributes_.append('model')
+        self._attributes_.append("HWversion"),
+        self._attributes_.append("SWversion")
+        # These replace class PowerMeter defaults
+        self.f_min = float(self.ask("FREQUENCY? MIN")[:-4])/1.e6 # GHz
+        self.f_max = float(self.ask("FREQUENCY? MAX")[:-4])/1.e6 # GHz
+        self.p_min = -55 # dBm
+        self.p_max = +10 # dBm
+        self.auto_averaging() # sets num_avg
+        # units and trigmode are the same as the PowerMeter defaults
+        self.units = self.ask("POWER_UNIT?")
+        self.trigmode = None
+        # use lowest sampling speed
+        self.ask("ACQ_SPEED 20")
+        self.logger.info(" initialized %s", device[5:])
+      else:
+        raise RadipowerError(self.ID, 'is not a valid response to ID_NUMBER?')
     else:
       self.logger.warning(" initialization failed")
     
@@ -387,13 +390,16 @@ def find_radipowers():
   Instantiates the Radipowers found and returns a dict
   """
   ports = glob("/dev/ttyUSB*")
-  module_logger.debug(" ports: %s", ports)
+  logger.debug(" ports: %s", ports)
   rp = {}
   for port in ports:
-    module_logger.debug(" Opening %s", port)
-    RP = Radipower(device=port)
-    if RP.ID != None:
+    logger.debug(" Opening %s", port)
+    try:
+      RP = Radipower(device=port)
+    except RadipowerError:
+      logger.error("find_radipowers: no response from %s", port)
+    if RP.ID != "":
       index = IDs[RP.ID]
       rp[index] = RP
-      module_logger.debug(" Attached Radipower %d", index)
+      logger.debug(" Attached Radipower %d", index)
   return rp
