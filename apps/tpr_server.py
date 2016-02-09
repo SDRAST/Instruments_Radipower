@@ -16,7 +16,7 @@ module_logger = logging.getLogger(__name__)
 class RadiometerServer(PyroServer, Radiometer):
   """
   """
-  def __init__(self, name, rate=0.2):
+  def __init__(self, name, rate=1./60):
     """
     """
     self.logger = logging.getLogger(module_logger.name+".RadiometerServer")

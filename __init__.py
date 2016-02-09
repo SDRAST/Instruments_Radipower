@@ -2,6 +2,7 @@ from datetime import datetime
 from glob import glob
 from math import ceil, log, sqrt
 from numpy import array
+from os.path import basename
 from serial import Serial
 from time import sleep, time
 import logging
@@ -65,6 +66,7 @@ class Radipower(PowerMeter, Serial):
     Serial.__init__(self, device, baud,
                           timeout=timeout, writeTimeout=writeTimeout)
     sleep(0.02)
+    self.name = basename(device)
     PowerMeter.__init__(self)
     self.logger = mylogger
     self.logger.debug(" initializing %s", device)    
@@ -398,8 +400,9 @@ def find_radipowers():
       RP = Radipower(device=port)
     except RadipowerError:
       logger.error("find_radipowers: no response from %s", port)
-    if RP.ID != "":
-      index = IDs[RP.ID]
-      rp[index] = RP
-      logger.debug(" Attached Radipower %d", index)
+    else:
+      if RP.ID != "":
+        index = IDs[RP.ID]
+        rp[index] = RP
+        logger.debug(" Attached Radipower %d", index)
   return rp
