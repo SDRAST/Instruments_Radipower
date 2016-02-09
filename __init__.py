@@ -2,6 +2,7 @@ from datetime import datetime
 from glob import glob
 from math import ceil, log, sqrt
 from numpy import array
+from os.path import basename
 from serial import Serial
 from time import sleep, time
 import logging
@@ -30,6 +31,7 @@ IDs = {"1.99.234.24.23.0.0.212":   0,
        "1.200.250.90.24.0.0.180": 15,
        "114.80.79.87.69.82.0.68": 99} # lab test unit
 
+
 class RadipowerError(RuntimeError):
   """
   Exception for Radipower class
@@ -48,14 +50,16 @@ class Radipower(PowerMeter, Serial):
   Class for a Radipower USB power reading head.
   
   The head provides for averaging of readings according to a filter code
-  defined in class variable 'averages'.  At filter code setting 1, the
+  defined in class variable 'filtercodes'.  At filter code setting 1, the
   rate is 100 samples/sec.
   
   Reference
   ========= 
   http://dsnra.jpl.nasa.gov/dss/manuals/RadiPower_Standalone_V1_1.pdf
   """
-  averages = {1:10, 2:30, 3:100, 4:300, 5:1000, 6:3000, 7:5000}
+  filtercodes = {"RPR1018A": {1:1, 2:3, 3:10, 4:30, 5:100, 6:300, 7:1000},
+                 "RPR2006C": {1:10, 2:30, 3:100, 4:300, 5:1000, 6:3000, 7:5000}}
+  assigned = {}
   
   def __init__(self, device="/dev/ttyUSB0", baud=115200,
                timeout=1, writeTimeout=1):
@@ -65,15 +69,20 @@ class Radipower(PowerMeter, Serial):
     Serial.__init__(self, device, baud,
                           timeout=timeout, writeTimeout=writeTimeout)
     sleep(0.02)
-    PowerMeter.__init__(self)
+    PowerMeter.__init__(self, basename(device)) # temporary name
     self.logger = mylogger
     self.logger.debug(" initializing %s", device)    
     self._attributes_ = []
     self._attributes_.append('logger')
     if self.get_ID():
       if self.ID:
-        self.name = self.ID
-        self._attributes_.append('ID')
+        if Radipower.assigned.has_key(self.ID):
+          self.logger.warning("__init__: %s already assigned as Radipower %d",
+                              device, found)
+        else:
+          Radipower.assigned[IDs[self.ID]] = device # show device as assigned
+        self.name = "PM%02d" % IDs[self.ID]
+        self._attributes_.append('name')
         self.identify()
         self._attributes_.append('model')
         self._attributes_.append("HWversion"),
@@ -114,7 +123,9 @@ class Radipower(PowerMeter, Serial):
   def identify(self):
     """
     """
-    self.model = self.ask("*IDN?")
+    response = self.ask("*IDN?")
+    index = response.index('RPR')
+    self.model = response[index:index+8]
     self.HWversion = self.ask("VERSION_HW?")
     self.SWversion = self.ask("VERSION_SW?")
 
@@ -283,31 +294,17 @@ class Radipower(PowerMeter, Serial):
     if self.filter == "AUTO":
       self.power()
       if self.reading > -20. and self.reading <= 10.:
-        self.num_avg = 100
+        self.num_avg = Radipower.filtercodes[self.model][3]
       elif self.reading > -30. and self.reading <= -20.:
-        self.num_avg = 300
+        self.num_avg = Radipower.filtercodes[self.model][4]
       elif self.reading > -40. and self.reading <= -30.:
-        self.num_avg = 1000
+        self.num_avg = Radipower.filtercodes[self.model][5]
       elif self.reading > -50. and self.reading <= -40.:
-        self.num_avg = 3000
+        self.num_avg = Radipower.filtercodes[self.model][6]
       else:
-        self.num_avg = 5000
+        self.num_avg = Radipower.filtercodes[self.model][7]
     else:
-      self.num_avg = Radipower.averages[int(self.filter)]
-    if self.filter == "1":
-      self.num_avg = 10
-    elif self.filter == "2":
-      self.num_avg = 30
-    elif self.filter == "3":
-      self.num_avg = 100
-    elif self.filter == "4":
-      self.num_avg = 300
-    elif self.filter == "5":
-      self.num_avg = 1000
-    elif self.filter == "6":
-      self.num_avg = 3000
-    elif self.filter == "7":
-      self.num_avg = 5000
+      self.num_avg = Radipower.filtercodes[self.model][int(self.filter)]
     return self.num_avg
     
   def set_averaging(self, num, no_smear=False, min_rms=False, most=False):
