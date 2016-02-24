@@ -70,7 +70,7 @@ class Radipower(PowerMeter, Serial):
                           timeout=timeout, writeTimeout=writeTimeout)
     sleep(0.02)
     self.name = basename(device)
-    PowerMeter.__init__(self)
+    PowerMeter.__init__(self, self.name)
     self.logger = mylogger
     self.logger.debug(" initializing %s", device)    
     self._attributes_ = []
