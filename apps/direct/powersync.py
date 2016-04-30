@@ -20,42 +20,36 @@ if __name__ == "__main__":
   mylogger = logging.getLogger()
   mylogger = init_logging(mylogger,
                           loglevel = logging.INFO,
-                          consolevel = logging.WARNING,
+                          consolevel = logging.DEBUG,
                           logname = "/tmp/logging.log")
-  pm, pmlist = find_radipowers()
+  pm = find_radipowers()
 
   if check_permission('ops') == False:
     raise RuntimeError("Insufficient permission")
   
-  if pmlist:
+  if pm:
     mylogger.info("Starting powersync at %s", str(datetime.datetime.now()))
-    radiometer = Radiometer(pm, pmlist, rate=20)
+    radiometer = Radiometer(pm, rate=0.2)
     mylogger.debug(" radiometer initialized")
-    mylogger.debug(" radiometer started")
+    mylogger.info(" radiometer started")
     data = {}
-    for key in pmlist:
-      reading = pm[key].power() # dummy reading to wake up Radipower
+    # dummy reading to wake up Radipower
+    for key in pm.keys():
+      reading = pm[key].power() 
       data[key] = []
     run = True
     radiometer.start()
     while run:
       try:
-        for pm in pmlist:
+        # This just gives the main loop something to do so an <Esc> will be
+        # caught
+        for key in pm.keys():
           time.sleep(0.0001)
-          #mylogger.debug(" reading queue %s", pm)
-          #data[pm].append(radiometer.queue[pm].get(False))
-          #mylogger.debug(" acquired %s at %s", data[pm][-1], datetime.datetime.now())
-          # except Queue.Empty:
-          # mylogger.debug(" no data on queue %s at %s",
-          #                pm, str(datetime.datetime.now()))
-          #except Exception, details:
-          #mylogger.error("Exception: %s", details)
-          #run = False
       except KeyboardInterrupt:
         mylogger.warning(" main thread got Ctrl-C")
         radiometer.close()
         run = False
-    mylogger.debug(" radiometer stopped")    
+    mylogger.info(" radiometer stopped")    
 
   else:
     mylogger.error("No power meters found")
