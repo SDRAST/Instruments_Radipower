@@ -40,6 +40,11 @@ class RadiometerServer(PyroServer, Radiometer):
     logger - logging.Logger object but superceded
     run    - True if server is running
   """
+  help_text = """
+  change_rate(rate) - change sampling rate to 'rate' samples per second
+  get_readings()    - return the most recent set of readings
+  stop              - stop the radiometer server
+  """
   def __init__(self, name, logpath="/var/tmp/", rate=1./60):
     """
     Initialize a Radipower radiometer server
@@ -110,6 +115,9 @@ class RadiometerServer(PyroServer, Radiometer):
     sync_second()
     signal.setitimer(signal.ITIMER_REAL, self.update_interval, self.update_interval)
 
+  def help(self):
+    return RadiometerServer.help_text
+    
 if __name__ == "__main__":
 
   def main(name):
