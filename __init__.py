@@ -69,7 +69,8 @@ class Radipower(PowerMeter, Serial):
     Serial.__init__(self, device, baud,
                           timeout=timeout, writeTimeout=writeTimeout)
     sleep(0.02)
-    PowerMeter.__init__(self, basename(device)) # temporary name
+    self.name = basename(device)
+    PowerMeter.__init__(self, self.name)
     self.logger = mylogger
     self.logger.debug(" initializing %s", device)    
     self._attributes_ = []
@@ -395,8 +396,9 @@ def find_radipowers():
       RP = Radipower(device=port)
     except RadipowerError:
       logger.error("find_radipowers: no response from %s", port)
-    if RP.ID != "":
-      index = IDs[RP.ID]
-      rp[index] = RP
-      logger.debug(" Attached Radipower %d", index)
+    else:
+      if RP.ID != "":
+        index = IDs[RP.ID]
+        rp[index] = RP
+        logger.debug(" Attached Radipower %d", index)
   return rp

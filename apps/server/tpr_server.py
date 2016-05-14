@@ -45,6 +45,7 @@ class RadiometerServer(PyroServer, Radiometer):
   get_readings()    - return the most recent set of readings
   stop              - stop the radiometer server
   """
+
   def __init__(self, name, logpath="/var/tmp/", rate=1./60):
     """
     Initialize a Radipower radiometer server
