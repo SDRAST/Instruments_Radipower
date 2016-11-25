@@ -127,7 +127,7 @@ if __name__ == "__main__":
     
     Provides command line options for logging and starts the top-level logger.
     """
-    p = initiate_option_parser(
+    p = initiate_option_parser("Dare! Total Power Radiometer server",
      """Generic Pyro server which servers as a template for actual servers.""")
     # Add other options here
   
@@ -141,7 +141,8 @@ if __name__ == "__main__":
     mylogger.debug(" Handlers: %s", mylogger.handlers)
     loggers = set_module_loggers(eval(opts.modloglevels))
 
-    psl = PyroServerLauncher(name+"Server") # the name by which the Pyro task is known
+    # specify the name by which the Pyro task is known
+    psl = PyroServerLauncher(name+"Server", nameserver_host="crux")
     m = RadiometerServer(name, logpath=opts.logpath+name+"/") # identifier for the hardware
     psl.start(m)
     # clean up after the server stops
