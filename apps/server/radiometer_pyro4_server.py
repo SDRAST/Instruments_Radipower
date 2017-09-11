@@ -16,7 +16,6 @@ import Pyro4
 import Electronics.Instruments.Radipower as Radipower
 from Electronics.Instruments.radiometer import Radiometer
 import support
-# from support import check_permission, sync_second
 
 from pyro_support import Pyro4Server, config
 
