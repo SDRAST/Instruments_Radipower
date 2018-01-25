@@ -21,7 +21,7 @@ IDs = {"1.99.234.24.23.0.0.212":   0,
        "1.243.178.24.23.0.0.206":  5,
        "1.229.178.24.23.0.0.39":   6,
        "1.152.210.24.23.0.0.228":  7,
-       "1.117.145.134.23.0.0.212": 8,
+       "1.117.145.134.23.0.0.212":99,  # to be repaired
        "1.30.144.134.23.0.0.34":   9,
        "1.20.144.134.23.0.0.237": 10,
        "1.237.143.134.23.0.0.26": 11,
@@ -29,21 +29,21 @@ IDs = {"1.99.234.24.23.0.0.212":   0,
        "1.250.169.133.23.0.0.40": 13,
        "1.189.250.90.24.0.0.199": 14,
        "1.200.250.90.24.0.0.180": 15,
-       "114.80.79.87.69.82.0.68": 99} # lab test unit
+       "114.80.79.87.69.82.0.68":  8} # lab test unit
 
 
 class RadipowerError(RuntimeError):
   """
   Exception for Radipower class
   """
-  def __init__(self,args,message):
+  def __init__(self, args, message):
     """
     """
     self.args = args
     self.message = message
 
-  def __repr__(self):
-    return repr(("".join(str(self.args)), self.message))
+  def __str__(self):
+    return repr(("".join(self.args), self.message))
 
 class Radipower(PowerMeter, Serial):
   """
@@ -77,6 +77,7 @@ class Radipower(PowerMeter, Serial):
     self._attributes_.append('logger')
     if self.get_ID():
       if self.ID:
+        print "found:", self.ID
         if Radipower.assigned.has_key(self.ID):
           self.logger.warning("__init__: %s already assigned as Radipower %d",
                               device, found)
@@ -95,10 +96,20 @@ class Radipower(PowerMeter, Serial):
         self.p_max = +10 # dBm
         self.auto_averaging() # sets num_avg
         # units and trigmode are the same as the PowerMeter defaults
-        self.units = self.ask("POWER_UNIT?")
+        if self.model == 'RPR1018A':
+          self.units = 0
+        else:
+          self.units = self.ask("POWER_UNIT?")
         self.trigmode = None
         # use lowest sampling speed
-        self.ask("ACQ_SPEED 20")
+        try:
+          self.ask("ACQ_SPEED 20")
+        except RadipowerError as details:
+          if str(details.message) == 'is not a valid command':
+            # for old model radipowers
+            pass
+          else:
+            raise RuntimeError(details)
         self.logger.info(" initialized %s", device[5:])
       else:
         raise RadipowerError(self.ID, 'is not a valid response to ID_NUMBER?')
@@ -112,7 +123,7 @@ class Radipower(PowerMeter, Serial):
     exists = False
     while exists == False and retries < 3:
       try:
-        self.ID = self.ask("ID_NUMBER?")
+        self.ID = self.ask("ID_NUMBER?").strip()
         exists = True
       except RadipowerError,details:
         self.logger.error("command error: "+str(details))
@@ -132,6 +143,8 @@ class Radipower(PowerMeter, Serial):
 
   def ask(self, command):
     """
+    An example of 'parts'::
+      ['ERROR 1', '[ACQ_SPEED 20]', '']
     """
     self.logger.debug("ask: '%s'", command)
     self.write(command+'\n')
@@ -141,19 +154,20 @@ class Radipower(PowerMeter, Serial):
     if len(parts) == 1:
       return response
     else:
-      _IO_error(parts)
+      self._IO_error(parts)
   
   def _IO_error(self, parts):
     """
     """
+    response = ";".join(parts)
     if parts[0] == 'ERROR 1':
       raise RadipowerError(parts[1],"is not a valid command")
     elif parts[0] == 'ERROR 50':
-      raise RadipowerError(response,"; command has a bad argument")
+      raise RadipowerError(parts[1],"; command has a bad argument")
     elif parts[0] == 'ERROR 51':
-      raise RadipowerError(response,"; argument value is too high")
+      raise RadipowerError(parts[1],"; argument value is too high")
     elif parts[0] == 'ERROR 52':
-      raise RadipowerError(response,"; argument value is too low")
+      raise RadipowerError(parts[1],"; argument value is too low")
     elif parts[0] == 'ERROR_601':
       raise RadipowerError(response,"; measurement frequency is not set")
     elif parts[0] == 'ERROR_602':
