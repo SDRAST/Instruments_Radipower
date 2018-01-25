@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 """
+Program from Dare! to test timing of Radipower readings
+
 I would like to suggest that you use the following sequence every time you
 connect to a RadiPower:
 1.  Open the USB/serial port (in your case: /dev/ttyUSB15)

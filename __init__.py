@@ -1,3 +1,29 @@
+"""
+support for Dare!! power meters
+
+The default reference frequency (command FREQUENCY) is 1.3 GHz.
+
+The acquisition speeds (command ACQ_SPEED) are 20, 100 and 1000 kS/s.  The
+video bandwidth can be coupled to the acquisition speed as shown in the next
+table.
+  
+The video bandwidth codes (command VBW) are::
+  0 10     MHz    1    MS/s = 1000 kS/s
+  1  1     MHz    0.1  MS/s =  100 kS/s
+  2  0.2   MHz    0.02 MS/s =   20 kS/s
+  3  0.001 MHz
+The command 'VBW AUTO' couples the video bandwidth to the sampling speed as
+shown in the table above.
+
+The serial communication BAUD rate codes are::
+  0 for  57600 bps
+  1 for 115200 bps (default)  reading time (144 bits) is 1.25 ms/S
+  2 for 230400 bps            reading time (144 bits) is 0.6  ms/S
+  3 for 460800 bps            reading time (144 bits) is 0.3  ms/S
+
+These commands are not implemented for our devices::
+  MODE
+"""
 from datetime import datetime
 from glob import glob
 from math import ceil, log, sqrt
@@ -36,11 +62,15 @@ class RadipowerError(RuntimeError):
   """
   Exception for Radipower class
   """
-  def __init__(self,args,message):
+  def __init__(self, args, message):
     """
     """
+    super(RadipowerError, self).__init__(message)
     self.args = args
     self.message = message
+    self.logger = logging.getLogger(logger.name+".RadipowerError")
+    self.logger.debug("__init__: args: %s", args)
+    self.logger.debug("__init__: message: %s", message)
 
   def __repr__(self):
     return repr(("".join(str(self.args)), self.message))
@@ -64,6 +94,10 @@ class Radipower(PowerMeter, Serial):
   def __init__(self, device="/dev/ttyUSB0", baud=115200,
                timeout=1, writeTimeout=1):
     """
+    The 'baud' argument is provided to compensate for a possible difference
+    between the Radipower BAUD rate andthe computer BAUD rate.  Basically,
+    it's best not to fiddle with the BAUD rate because getting it wrong locks
+    up the device.
     """
     mylogger = logging.getLogger(logger.name+".Radipower")
     Serial.__init__(self, device, baud,
@@ -96,7 +130,6 @@ class Radipower(PowerMeter, Serial):
         self.auto_averaging() # sets num_avg
         # units and trigmode are the same as the PowerMeter defaults
         self.units = self.ask("POWER_UNIT?")
-        self.trigmode = None
         # use lowest sampling speed
         self.ask("ACQ_SPEED 20")
         self.logger.info(" initialized %s", device[5:])
@@ -113,13 +146,12 @@ class Radipower(PowerMeter, Serial):
     while exists == False and retries < 3:
       try:
         self.ID = self.ask("ID_NUMBER?")
-        exists = True
-      except RadipowerError,details:
-        self.logger.error("command error: "+str(details))
+        return True
+      except Exception, details:
+        self.logger.error("get_ID: command error: "+str(details))
         retries += 1
         self.ID = None
-        exists = False
-    return exists
+        return False
 
   def identify(self):
     """
@@ -129,6 +161,7 @@ class Radipower(PowerMeter, Serial):
     self.model = response[index:index+8]
     self.HWversion = self.ask("VERSION_HW?")
     self.SWversion = self.ask("VERSION_SW?")
+    return self.model, self.HWversion, self.SWversion
 
   def ask(self, command):
     """
@@ -136,31 +169,30 @@ class Radipower(PowerMeter, Serial):
     self.logger.debug("ask: '%s'", command)
     self.write(command+'\n')
     response = self.readline().strip()
-    self.logger.debug("ask: response: %s", response)
-    parts = response.split(";")
-    if len(parts) == 1:
-      return response
+    self.logger.debug("ask: response: '%s'", response)
+    if response[:5] == "ERROR":
+      self._IO_error(response)
     else:
-      _IO_error(parts)
+      return response
   
-  def _IO_error(self, parts):
+  def _IO_error(self, response):
     """
     """
-    if parts[0] == 'ERROR 1':
-      raise RadipowerError(parts[1],"is not a valid command")
-    elif parts[0] == 'ERROR 50':
+    if response == 'ERROR 1':
+      raise RadipowerError(response,"is not a valid command")
+    elif response == 'ERROR 50':
       raise RadipowerError(response,"; command has a bad argument")
-    elif parts[0] == 'ERROR 51':
+    elif response == 'ERROR 51':
       raise RadipowerError(response,"; argument value is too high")
-    elif parts[0] == 'ERROR 52':
+    elif response == 'ERROR 52':
       raise RadipowerError(response,"; argument value is too low")
-    elif parts[0] == 'ERROR_601':
+    elif response == 'ERROR_601':
       raise RadipowerError(response,"; measurement frequency is not set")
-    elif parts[0] == 'ERROR_602':
+    elif response == 'ERROR_602':
       raise RadipowerError(response,"; over range")
-    elif parts[0] == 'ERROR_603':
+    elif response == 'ERROR_603':
       raise RadipowerError(response,"; under range")
-    elif parts[0] == 'ERROR_604':
+    elif response == 'ERROR_604':
       raise RadipowerError(response,"; no calibration data for this frequency")
     else:
       raise RadipowerError(response,"is an unexpected response")
@@ -198,6 +230,13 @@ class Radipower(PowerMeter, Serial):
     self._add_attr("temp")
     return self.temp
   
+  def get_sampling_rate(self):
+    """
+    returns sampling rate
+    """
+    acq_speed = self.ask('BAUD?')
+    return float(acq_speed)*1000
+    
   def get_read_speed(self):
     """
     Returns the time taken for one reading in s.
@@ -205,12 +244,15 @@ class Radipower(PowerMeter, Serial):
     On an RPi-1 this takes about 25 s at ACQ_SPEED=1000.
     """
     t0 = time()
+    print "ACQ_SPEED", self.ask("ACQ_SPEED?")
+    print "FILTER", self.ask("FILTER?")
     for i in range(100):
       x = self.ask('POWER?')
     return (time()-t0)/100
 
   def filter_bounds(self, samples_per_reading):
     """
+    return the filter codes which bound the specified sampling rate
     """
     if samples_per_reading < 10:
       bounds = (None,1)
@@ -253,7 +295,7 @@ class Radipower(PowerMeter, Serial):
     self.get_averaging()
     return response
     
-  def set_VBW(self,code):
+  def set_VBW(self, code):
     """
     Sets the video bandwidth
     
@@ -266,9 +308,16 @@ class Radipower(PowerMeter, Serial):
     modulation the VBW should be 10 times smaller than the RF carrier frequency
     but higher than the modulation frequency.
     """
-    pass
-    
-  # --------------------- methods defined for PowerMeter ----------------------
+    if code == 0:
+      self.VBW = 1e7 # Hz
+    elif code == 1:
+      self.VBW = 1e6 # Hz
+    elif code == 2:
+      self.VBW = 2e5 # Hz
+    elif code == 3:
+      self.VBW = 1e3 # Hz
+    else:
+      raise RadipowerError(code, "is not a valid VBW code")
   
   def power(self):
     """
@@ -312,6 +361,8 @@ class Radipower(PowerMeter, Serial):
     """
     Selects the averaging option for power meter readings
     
+    NOT FINISHED
+    
     Sets the number of samples to average.  If no keyword argument is given,
     the averaging option is the one which averages the number of samples which
     is closest to num.
@@ -336,27 +387,36 @@ class Radipower(PowerMeter, Serial):
     
     @return num_averaged
     """
-    if num > 5000:
-      raise RadipowerError(num_averages,"averages is greater than 1000")
-    elif num > 0:
-      read_speed = get_read_speed() # ms
-      if read_speed < 1 :
-        response = self.ask("BAUD 3")           # 0.3 ms/sample
-      elif read_speed < 2:
-        response = self.ask("BAUD 2")           # 0.6 ms/sample
-      else:
-        response = self.ask("BAUD 1")           # 1.25 ms/sample
-    elif num == 0:
-      samples_per_read = read_speed*20
-      bounds = filter_bounds(samples_per_read)
-      if most:
-        response = self.ask("FILTER 7")
-      elif no_smear:
-        response = self.ask("FILTER "+str(bounds[0]))
-      elif min_rms:
-        response = self.ask("FILTER "+str(bounds[1]))
-      else:
-        response = self.ask("FILTER "+str(nearest_index(array(bounds), num)))
+    if self.model == 'RPR2006C':
+      if num > 5000:
+        raise RadipowerError(num_averages,"averages is greater than 5000")
+      elif num > 0:
+        read_speed = self.get_read_speed() # ms
+        self.logger.debug("set_averaging: read speed = %6.3f", read_speed)
+        if read_speed < 0.5 :
+          response = self.ask("BAUD 3")           # 0.3 ms/sample
+        elif read_speed < 1:
+          response = self.ask("BAUD 2")           # 0.6 ms/sample
+        else:
+          response = self.ask("BAUD 1")           # 1.25 ms/sample
+      elif num == 0:
+        samples_per_read = read_speed*20
+        bounds = self.filter_bounds(samples_per_read)
+        if most:
+          response = self.ask("FILTER 7")
+        elif no_smear:
+          response = self.ask("FILTER "+str(bounds[0]))
+        elif min_rms:
+          response = self.ask("FILTER "+str(bounds[1]))
+        else:
+          response = self.ask("FILTER "+str(nearest_index(array(bounds), num)))
+    elif self.model == 'RPR1018A':
+      if num > 1000:
+        raise RadipowerError(num_averages,"averages is greater than 1000")
+      elif num > 0:
+        read_speed = self.get_read_speed() # ms
+        if read_speed < 1 :
+          pass
     self.get_averaging()
     return response
     
@@ -388,7 +448,9 @@ def find_radipowers():
   Instantiates the Radipowers found and returns a dict
   """
   ports = glob("/dev/ttyUSB*")
-  logger.debug(" ports: %s", ports)
+  logger.debug("find_radipowers: found %s", ports)
+  ports.sort()
+  logger.debug("find_radipowers: ports: %s", ports)
   rp = {}
   for port in ports:
     logger.debug(" Opening %s", port)

@@ -1,3 +1,6 @@
+"""
+Plots timing data saved in /tmp/sorted
+"""
 from numpy import array, loadtxt
 from dateutil import parser
 from pylab import *

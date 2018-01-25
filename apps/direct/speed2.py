@@ -15,18 +15,45 @@ def readlineCR(port):
 	else:
   	    rv += ch
 
-port = serial.Serial("/dev/ttyUSB0", baudrate=115200, timeout=3.0)
+ID = '2'
+device = "/dev/ttyUSB"+ID
+print "Using", device
+port = serial.Serial(device, baudrate=115200, timeout=3.0)
 
-filt = "AUTO"
+# acquisition speed; 20, 100 or 1000 kS/s
+acq_speed = '1000'
+port.write("ACQ_SPEED "+acq_speed+"\n")
+time.sleep(0.001)
+rcv = readlineCR(port)
+print "set 'ACQ_SPEED "+acq_speed+"' response: ",rcv
+
+# filter code (samples per reading)
+#   '1' gives the smallest number of samples; AUTO adjusts for power level
+filt = '1'
 port.write("FILTER "+filt+"\n")
 time.sleep(0.001)
 rcv = readlineCR(port)
 print "set 'Filter "+filt+"' response: ",rcv
 
-#Getting the current filter setting
+# BAUD rate
+baud = '1'
+port.write("BAUD "+baud+"\n")
+time.sleep(0.001)
+rcv = readlineCR(port)
+print "set 'BAUD "+baud+"' response: ",rcv
+
+port.write("ACQ_SPEED?\n")
+rcv = readlineCR(port)
+print "ACQ_SPEED:",rcv
+
 port.write("Filter?\n")
 rcv = readlineCR(port)
 print "Filter:", rcv
+
+port.write("BAUD?\n")
+rcv = readlineCR(port)
+print "BAUD:", rcv
+
 
 # time the measurement
 start = timer()

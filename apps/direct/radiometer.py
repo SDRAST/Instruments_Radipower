@@ -1,5 +1,5 @@
 """
-Synchronized multi-channel power meter
+Synchronized multi-channel power meter using realtime clock
 """
 import logging
 import datetime
