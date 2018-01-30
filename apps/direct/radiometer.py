@@ -18,13 +18,13 @@ if __name__ == "__main__":
   mylogger = logging.getLogger()
   mylogger.setLevel(logging.INFO)
 
-  pm, pmlist = find_radipowers()
+  pm = find_radipowers()
   
   rtc = RTC()
-  rtc.N_pps.start(1)
+  rtc.N_pps.start()
 
   mylogger.info("Starting pm_reader at %s", str(datetime.datetime.now()))
-  radiometer = Radiometer(pm, pmlist, rtc)
+  radiometer = Radiometer(pm, rtc)
   run = True
   try:
     while run:

@@ -13,7 +13,6 @@ from Electronics.Instruments.radiometer import Radiometer
 from Electronics.Instruments.Radipower import find_radipowers
 from support import check_permission
 from support.logs import init_logging
-from DatesTimes import UnixTime_to_MPL
 
 if __name__ == "__main__":
   logging.basicConfig()
