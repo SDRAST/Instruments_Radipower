@@ -19,6 +19,7 @@ if plot_it:
 import logging
 
 from Electronics.Instruments.Radipower import Radipower, IDs, find_radipowers
+from local_dirs import log_dir
 from support import check_permission
 from support.process import invoke
 from support.logs import init_logging
@@ -28,7 +29,7 @@ if __name__ == "__main__":
   mylogger = logging.getLogger()
   init_logging(mylogger, loglevel=logging.DEBUG,
                          consolevel=logging.DEBUG,
-                         logname="/usr/local/logs/Radipowerradipower.log")
+                         logname=log_dir+"Radipowerradipower.log")
   
   check_permission('dialout')
   
