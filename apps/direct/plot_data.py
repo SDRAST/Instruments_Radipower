@@ -1,5 +1,5 @@
 """
-untested
+untested program to plot data files in /tmp
 """
 from pylab import *
 

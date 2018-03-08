@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 """
+Program from Dare! to test timing of Radipower readings
+
 I would like to suggest that you use the following sequence every time you
 connect to a RadiPower:
 1.  Open the USB/serial port (in your case: /dev/ttyUSB15)
@@ -29,7 +31,7 @@ if __name__ == "__main__":
   mylogger = logging.getLogger()
   init_logging(mylogger, loglevel=logging.DEBUG,
                          consolevel=logging.DEBUG,
-                         logname=log_dir+"Radipowerradipower.log")
+                         logname=log_dir+"Radipower/radipower.log")
   
   check_permission('dialout')
   

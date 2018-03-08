@@ -17,7 +17,7 @@ import Electronics.Instruments.Radipower as Radipower
 from Electronics.Instruments.radiometer import Radiometer
 import support
 
-from pyro_support import Pyro4Server, config
+from support.pyro import Pyro4Server, config
 
 module_logger = logging.getLogger(__name__)
 
